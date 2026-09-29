@@ -1,0 +1,365 @@
+CREATE DATABASE autoberles;
+USE autoberles;
+
+
+-- =========================================
+-- FELHASZNÁLÓK
+-- =========================================
+
+CREATE TABLE felhasznalok (
+    felhasznalo_id INT AUTO_INCREMENT PRIMARY KEY,
+    nev VARCHAR(100) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    telefonszam VARCHAR(30),
+    jelszo_hash VARCHAR(255) NOT NULL,
+    szul_datum DATE,
+    cim VARCHAR(255),
+    profil_tipus ENUM('ugyfel', 'admin') NOT NULL DEFAULT 'ugyfel'
+);
+
+
+-- =========================================
+-- JÁRMŰKATEGÓRIÁK
+-- =========================================
+
+CREATE TABLE jarmu_kategoriak (
+    kategoria_id INT AUTO_INCREMENT PRIMARY KEY,
+    nev VARCHAR(100) NOT NULL UNIQUE,
+    leiras TEXT
+);
+
+
+-- =========================================
+-- JÁRMŰVEK
+-- =========================================
+
+CREATE TABLE jarmuvek (
+    jarmu_id INT AUTO_INCREMENT PRIMARY KEY,
+    kategoria_id INT NOT NULL,
+    marka VARCHAR(100) NOT NULL,
+    modell VARCHAR(100) NOT NULL,
+    alvazszam VARCHAR(50) NOT NULL UNIQUE,
+    evjarat YEAR NOT NULL,
+    uzemanyag ENUM(
+        'benzin',
+        'dizel',
+        'hibrid',
+        'elektromos',
+        'egyeb'
+    ) NOT NULL,
+    valto ENUM(
+        'manualis',
+        'automata'
+    ) NOT NULL,
+    szin VARCHAR(50),
+    kilometerora_allas INT NOT NULL DEFAULT 0,
+    berleti_dij_naponta DECIMAL(10,2),
+    veteli_ar DECIMAL(12,2),
+    allapot VARCHAR(100),
+    elerheto BOOLEAN NOT NULL DEFAULT TRUE,
+
+    CONSTRAINT fk_jarmu_kategoria
+        FOREIGN KEY (kategoria_id)
+        REFERENCES jarmu_kategoriak(kategoria_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+
+    CONSTRAINT chk_kilometer
+        CHECK (kilometerora_allas >= 0),
+
+    CONSTRAINT chk_berleti_dij
+        CHECK (berleti_dij_naponta IS NULL OR berleti_dij_naponta >= 0),
+
+    CONSTRAINT chk_veteli_ar
+        CHECK (veteli_ar IS NULL OR veteli_ar >= 0)
+);
+
+
+-- =========================================
+-- VÉLEMÉNYEK
+-- =========================================
+
+CREATE TABLE velemenyek (
+    velemeny_id INT AUTO_INCREMENT PRIMARY KEY,
+    felhasznalo_id INT NOT NULL,
+    jarmu_id INT NOT NULL,
+    ertekeles TINYINT NOT NULL,
+    cim VARCHAR(150),
+    szoveg TEXT NOT NULL,
+    letrehozas_datum DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_velemeny_felhasznalo
+        FOREIGN KEY (felhasznalo_id)
+        REFERENCES felhasznalok(felhasznalo_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_velemeny_jarmu
+        FOREIGN KEY (jarmu_id)
+        REFERENCES jarmuvek(jarmu_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_ertekeles
+        CHECK (ertekeles BETWEEN 1 AND 5),
+
+    -- Egy felhasználó egy járműről egyszer írhat véleményt
+    CONSTRAINT uq_felhasznalo_jarmu_velemeny
+        UNIQUE (felhasznalo_id, jarmu_id)
+);
+
+
+-- =========================================
+-- BÉRLÉSEK
+-- =========================================
+
+CREATE TABLE berlesek (
+    berles_id INT AUTO_INCREMENT PRIMARY KEY,
+    felhasznalo_id INT NOT NULL,
+    jarmu_id INT NOT NULL,
+    kezdet_datum DATETIME NOT NULL,
+    veg_datum DATETIME NOT NULL,
+    felvetel_helye VARCHAR(255) NOT NULL,
+    leadas_helye VARCHAR(255) NOT NULL,
+    napi_dij DECIMAL(10,2) NOT NULL,
+    osszeg DECIMAL(12,2) NOT NULL,
+    fizetesi_mod ENUM(
+        'bankkartya',
+        'keszpenz',
+        'atutalas'
+    ) NOT NULL,
+    fizetesi_statusz ENUM(
+        'fizetetlen',
+        'fizetve',
+        'visszateritve'
+    ) NOT NULL DEFAULT 'fizetetlen',
+    berles_statusz ENUM(
+        'foglalt',
+        'folyamatban',
+        'lezart',
+        'lemondva'
+    ) NOT NULL DEFAULT 'foglalt',
+    letrehozas_datum DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_berles_felhasznalo
+        FOREIGN KEY (felhasznalo_id)
+        REFERENCES felhasznalok(felhasznalo_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_berles_jarmu
+        FOREIGN KEY (jarmu_id)
+        REFERENCES jarmuvek(jarmu_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+
+    CONSTRAINT chk_berles_datum
+        CHECK (veg_datum > kezdet_datum),
+
+    CONSTRAINT chk_napi_dij
+        CHECK (napi_dij >= 0),
+
+    CONSTRAINT chk_osszeg
+        CHECK (osszeg >= 0)
+);
+
+
+-- =========================================
+-- VÁSÁRLÁSOK
+-- =========================================
+
+CREATE TABLE vasarlasok (
+    vasarlas_id INT AUTO_INCREMENT PRIMARY KEY,
+    felhasznalo_id INT NOT NULL,
+    jarmu_id INT NOT NULL,
+    vasarlas_datum DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    vetel_ar DECIMAL(12,2) NOT NULL,
+    fizetesi_mod ENUM(
+        'bankkartya',
+        'keszpenz',
+        'atutalas'
+    ) NOT NULL,
+    fizetesi_statusz ENUM(
+        'fizetetlen',
+        'fizetve',
+        'visszateritve'
+    ) NOT NULL DEFAULT 'fizetetlen',
+    vasarlas_statusz ENUM(
+        'feldolgozas_alatt',
+        'fizetve',
+        'teljesitve',
+        'lemondva'
+    ) NOT NULL DEFAULT 'feldolgozas_alatt',
+    atadas_datum DATETIME,
+
+    CONSTRAINT fk_vasarlas_felhasznalo
+        FOREIGN KEY (felhasznalo_id)
+        REFERENCES felhasznalok(felhasznalo_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+
+    CONSTRAINT fk_vasarlas_jarmu
+        FOREIGN KEY (jarmu_id)
+        REFERENCES jarmuvek(jarmu_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+
+    CONSTRAINT chk_vetel_ar
+        CHECK (vetel_ar >= 0)
+);
+
+
+
+
+_________________________________________________________________
+
+
+
+
+USE autoberles;
+
+-- =========================================
+-- FELHASZNÁLÓK
+-- =========================================
+
+INSERT INTO felhasznalok
+(nev, email, telefonszam, jelszo_hash, szul_datum, cim, profil_tipus)
+VALUES
+('Kovács Péter', 'kovacs.peter@email.hu', '+36 30 111 2233', 'hash_peter_123', '1995-04-12', '1117 Budapest, Fehérvári út 25.', 'ugyfel'),
+('Nagy Anna', 'nagy.anna@email.hu', '+36 20 222 3344', 'hash_anna_456', '1998-08-21', '4025 Debrecen, Piac utca 18.', 'ugyfel'),
+('Tóth Gábor', 'toth.gabor@email.hu', '+36 70 333 4455', 'hash_gabor_789', '1989-02-05', '6720 Szeged, Kárász utca 10.', 'ugyfel'),
+('Szabó Eszter', 'szabo.eszter@email.hu', '+36 30 444 5566', 'hash_eszter_321', '1993-11-17', '7621 Pécs, Király utca 8.', 'ugyfel'),
+('Horváth Dávid', 'horvath.david@email.hu', '+36 20 555 6677', 'hash_david_654', '1990-06-30', '9021 Győr, Baross Gábor út 12.', 'ugyfel'),
+('AutóRent Admin', 'admin@autorent.hu', '+36 30 999 8888', 'hash_admin_999', '1985-01-15', '1134 Budapest, Váci út 45.', 'admin');
+
+
+-- =========================================
+-- JÁRMŰKATEGÓRIÁK
+-- =========================================
+
+INSERT INTO jarmu_kategoriak
+(nev, leiras)
+VALUES
+('Személyautó', 'Kényelmes, általános használatra alkalmas személygépkocsik.'),
+('SUV', 'Nagyobb méretű, magas építésű szabadidő-autók.'),
+('Kisbusz', 'Nagyobb létszámú utazáshoz használható járművek.'),
+('Elektromos autó', 'Teljesen elektromos meghajtású járművek.'),
+('Prémium autó', 'Magasabb felszereltségű és prémium kategóriás járművek.');
+
+
+-- =========================================
+-- JÁRMŰVEK
+-- =========================================
+
+INSERT INTO jarmuvek
+(kategoria_id, marka, modell, alvazszam, evjarat, uzemanyag, valto,
+ szin, kilometerora_allas, berleti_dij_naponta, veteli_ar, allapot, elerheto)
+VALUES
+(1, 'Toyota', 'Corolla', 'JTDBR32E001234567', 2022, 'hibrid', 'automata',
+ 'Fehér', 35000, 15000.00, 7490000.00, 'Nagyon jó', TRUE),
+
+(1, 'Volkswagen', 'Golf', 'WVWZZZ1KZMW123456', 2021, 'benzin', 'manualis',
+ 'Fekete', 48000, 14000.00, 6790000.00, 'Jó', TRUE),
+
+(1, 'Skoda', 'Octavia', 'TMBJG7NE5M0123456', 2022, 'dizel', 'automata',
+ 'Szürke', 42000, 16000.00, 7990000.00, 'Nagyon jó', TRUE),
+
+(2, 'Toyota', 'RAV4', 'JTMR43FVX01234567', 2023, 'hibrid', 'automata',
+ 'Kék', 22000, 22000.00, 10990000.00, 'Újszerű', TRUE),
+
+(2, 'BMW', 'X3', 'WBAXX31010Y123456', 2022, 'dizel', 'automata',
+ 'Fekete', 31000, 30000.00, 14990000.00, 'Nagyon jó', TRUE),
+
+(3, 'Ford', 'Tourneo Custom', 'WF0YXXTTGY1234567', 2021, 'dizel', 'manualis',
+ 'Fehér', 65000, 28000.00, 11990000.00, 'Jó', TRUE),
+
+(4, 'Tesla', 'Model 3', '5YJ3E1EA7MF123456', 2023, 'elektromos', 'automata',
+ 'Piros', 18000, 25000.00, 13990000.00, 'Újszerű', TRUE),
+
+(4, 'Hyundai', 'Ioniq 5', 'KMHMN81A0NA123456', 2023, 'elektromos', 'automata',
+ 'Szürke', 12000, 27000.00, 15990000.00, 'Újszerű', TRUE),
+
+(5, 'Mercedes-Benz', 'E-Class', 'WDD2130421A123456', 2022, 'dizel', 'automata',
+ 'Ezüst', 28000, 35000.00, 17990000.00, 'Nagyon jó', TRUE),
+
+(5, 'Audi', 'A6', 'WAUZZZF20MN123456', 2021, 'dizel', 'automata',
+ 'Fekete', 45000, 32000.00, 15990000.00, 'Jó', FALSE);
+
+
+-- =========================================
+-- VÉLEMÉNYEK
+-- =========================================
+
+INSERT INTO velemenyek
+(felhasznalo_id, jarmu_id, ertekeles, cim, szoveg)
+VALUES
+(1, 1, 5, 'Nagyon kényelmes', 'Nagyon kényelmes és takarékos autó, hosszabb útra is tökéletes volt.'),
+(2, 4, 5, 'Remek SUV', 'Tágas, kényelmes és nagyon jó volt vezetni.'),
+(3, 7, 4, 'Modern elektromos autó', 'Gyors és kényelmes, az elektromos hatótáv is megfelelő volt.'),
+(4, 2, 4, 'Jó autó', 'Megbízható és kényelmes autó, a bérlés egyszerűen ment.'),
+(5, 9, 5, 'Prémium élmény', 'Nagyon kényelmes és elegáns autó. Minden rendben volt.'),
+(1, 6, 4, 'Családi utazáshoz', 'Nagy és praktikus kisbusz, sok csomag is elfért benne.');
+
+
+-- =========================================
+-- BÉRLÉSEK
+-- =========================================
+
+INSERT INTO berlesek
+(felhasznalo_id, jarmu_id, kezdet_datum, veg_datum,
+ felvetel_helye, leadas_helye, napi_dij, osszeg,
+ fizetesi_mod, fizetesi_statusz, berles_statusz)
+VALUES
+(1, 1, '2026-09-01 09:00:00', '2026-09-04 09:00:00',
+ 'Budapest, Váci út 45.', 'Budapest, Váci út 45.',
+ 15000.00, 45000.00,
+ 'bankkartya', 'fizetve', 'lezart'),
+
+(2, 4, '2026-09-05 10:00:00', '2026-09-08 10:00:00',
+ 'Debrecen, Repülőtér', 'Debrecen, Repülőtér',
+ 22000.00, 66000.00,
+ 'bankkartya', 'fizetve', 'lezart'),
+
+(3, 7, '2026-09-10 08:00:00', '2026-09-13 08:00:00',
+ 'Szeged, Belváros', 'Szeged, Belváros',
+ 25000.00, 75000.00,
+ 'atutalas', 'fizetve', 'lezart'),
+
+(4, 2, '2026-09-20 09:00:00', '2026-09-23 09:00:00',
+ 'Pécs, Vasútállomás', 'Pécs, Vasútállomás',
+ 14000.00, 42000.00,
+ 'bankkartya', 'fizetve', 'lezart'),
+
+(5, 9, '2026-10-02 10:00:00', '2026-10-05 10:00:00',
+ 'Győr, Belváros', 'Győr, Belváros',
+ 35000.00, 105000.00,
+ 'bankkartya', 'fizetve', 'foglalt'),
+
+(1, 6, '2026-10-10 09:00:00', '2026-10-13 09:00:00',
+ 'Budapest, Váci út 45.', 'Budapest, Váci út 45.',
+ 28000.00, 84000.00,
+ 'keszpenz', 'fizetetlen', 'foglalt');
+
+
+-- =========================================
+-- VÁSÁRLÁSOK
+-- =========================================
+
+INSERT INTO vasarlasok
+(felhasznalo_id, jarmu_id, vasarlas_datum, vetel_ar,
+ fizetesi_mod, fizetesi_statusz, vasarlas_statusz, atadas_datum)
+VALUES
+(3, 3, '2026-07-15 14:30:00', 7990000.00,
+ 'atutalas', 'fizetve', 'teljesitve', '2026-07-20 10:00:00'),
+
+(4, 5, '2026-08-02 11:00:00', 14990000.00,
+ 'bankkartya', 'fizetve', 'teljesitve', '2026-08-07 09:30:00'),
+
+(2, 10, '2026-08-20 15:45:00', 15990000.00,
+ 'atutalas', 'fizetve', 'teljesitve', '2026-08-25 13:00:00'),
+
+(5, 8, '2026-09-15 12:20:00', 15990000.00,
+ 'bankkartya', 'fizetve', 'feldolgozas_alatt', NULL),
+
+(1, 1, '2026-09-20 16:00:00', 7490000.00,
+ 'bankkartya', 'fizetetlen', 'feldolgozas_alatt', NULL);
